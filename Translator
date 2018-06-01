@@ -1,0 +1,301 @@
+var isNewTranslation = false; // Boolean to track whether adding new translaion or editing existing translation
+var allTranslations = [];     // Store all translation records from the database
+var currentTranslation = -1;  // Tracks the current translation displayed in viewall screen
+var translateWord = -1; // Tracks the current translations displayed in translation screen
+
+// Event handlers for welcomeScreen buttons
+onEvent("translateButton", "click", function() {
+  // Get all existing translations from the database
+  readRecords("Translations", {}, function(records) {
+    if (records.length === 0) {
+      // If there are no translations in the database, go to emptyDeck screen
+      setScreen("emptytranslationsScreen");
+    }
+    else {
+      // If there are translations in the deck, load the first translation and go to practice screen
+      allTranslations = records;
+      choosetranslatedWord();
+      setScreen("translateScreen");
+    }
+  });
+});
+
+onEvent("viewButton", "click", function() {
+  // Get all existing records
+  readRecords("Translations", {}, function(records) {
+    if (records.length === 0) {
+      // If there are no translations in the database, go to emptytranslation screen
+      setScreen("emptytranslationsScreen");
+    }
+    else {
+      // If there are translations in the records, load the first translation and go to viewall screen
+      allTranslations = records;
+      currentTranslation = 0;
+      loadTranslations(currentTranslation);
+      setScreen("viewallScreen");
+    }
+  });
+});
+
+onEvent("addButton", "click", function() {
+  isNewTranslation = true;
+  clearNewTranslationScreen();
+  setScreen("newwordScreen");
+});
+
+// Event handlers for translateScreen buttons
+
+onEvent("backtransButton", "click", function() {
+  setScreen("welcomeScreen");
+  setText("englishInput", "");
+  setText("spanishtranslationText", "");
+});
+
+// Event handlers for viewallScreen buttons
+onEvent("viewallScreen", "keydown", function(event) {
+  if (event.key == "Right") {
+    loadTranslations(currentTranslation + 1);
+  }
+  else if (event.key == "Left") {
+    loadTranslations(currentTranslation - 1);
+  }
+});
+
+onEvent("nextButton", "click", function() {
+  loadTranslations(currentTranslation + 1);
+});
+
+onEvent("previousButton", "click", function() {
+  loadTranslations(currentTranslation - 1);
+});
+
+onEvent("editButton", "click", function() {
+  isNewTranslation = false;
+  // Pre-load existing english/spanish text for the current translation
+  setText("newenglishInput", allTranslations[currentTranslation].english);
+  setText("newspanishInput", allTranslations[currentTranslation].spanish);
+  setText("editenglishInput", allTranslations[currentTranslation].english);
+  setText("editspanishInput", allTranslations[currentTranslation].spanish);
+  setScreen("editScreen");
+});
+
+onEvent("editsubmitButton", "click", function() {
+  var english = getText("editenglishInput");
+  var spanish = getText("editspanishInput");
+  if (isNewTranslation) {
+    // If adding a new translation, use createRecord
+    createRecord("Translations", {english:english, spanish:spanish}, function(record) {
+      // When finished creating new translation, go to success screen
+      setScreen("createsuccessScreen");
+      clearNewTranslationScreen();
+    });
+  }
+  else {
+    // If editing an existing translation, use updateRecord
+    
+    // Update a local copy of the current translation object with the new english and spanish
+    var translationToUpdate = allTranslations[currentTranslation];
+    translationToUpdate.english = english;
+    translationToUpdate.spanish = spanish;
+    
+    // Attempt to update the corresponding translation record in the database
+    updateRecord("Translations", translationToUpdate, function(record, success) {
+      // When finished updating a translation, go back to viewall screen
+      if (success) {
+        // Update local copy of translations
+        allTranslations[currentTranslation] = record;
+        // Update UI elements and go back to viewall screen
+        loadTranslations(currentTranslation);
+        setScreen("viewallScreen");
+        clearNewTranslationScreen();
+      }
+      else {
+        setScreen("screen_error");
+        setText("errorLabel", "Something went wrong! (Inside updateRecord)");
+      }
+    });
+  }
+});
+
+onEvent("deletehomeButton", "click", function() {
+setScreen("welcomeScreen");
+});
+
+onEvent("deleteButton", "click", function() {
+  // Delete current translations from database
+  deleteRecord("Translations", allTranslations[currentTranslation], function(success) {
+    if (success) {
+      setScreen("deletesuccessScreen");
+    }
+    else {
+      setScreen("screen_error");
+      setText("errorLabel", "Something went wrong! (Inside deleteRecord)");
+    }
+  });
+});
+
+onEvent("backallButton", "click", function() {
+  setScreen("welcomeScreen");
+});
+
+// Event handlers for newwordScreen buttons
+onEvent("newsubmitButton", "click", function() {
+  var english = getText("newenglishInput");
+  var spanish = getText("newspanishInput");
+
+  if (english === "" || spanish === "") {
+    // If either question or answer is empty, display an error message.
+    //setText("newTranslations_messageLabel", "Both sides of the translation must be filled out. Please try again.");
+  }
+  else if (isNewTranslation) {
+    // If adding a new translation, use createRecord
+    createRecord("Translations", {english:english, spanish:spanish}, function(record) {
+      // When finished creating new translation, go to success screen
+      setScreen("createsuccessScreen");
+      clearNewTranslationScreen();
+    });
+  }
+  else {
+    // If editing an existing translation, use updateRecord
+    
+    // Update a local copy of the current tranlating object with the new question and answer
+    var translationToUpdate = allTranslations[currentTranslation];
+    translationToUpdate.english = english;
+    translationToUpdate.spanish = spanish;
+    
+    // Attempt to update the corresponding translation record in the database
+    updateRecord("Translations", translationToUpdate, function(record, success) {
+      // When finished updating a translation, go back to viewall screen
+      if (success) {
+        // Update local copy of translation
+        allTranslations[currentTranslation] = record;
+        // Update UI elements and go back to viewall screen
+        loadTranslations(currentTranslation);
+        setScreen("viewallScreen");
+        clearNewTranslationScreen();
+      }
+      else {
+        setScreen("screen_error");
+        setText("errorLabel", "Something went wrong! (Inside updateRecord)");
+      }
+    });
+  }
+});
+
+onEvent("createsuccessbackButton", "click", function() {
+  setScreen("welcomeScreen");
+});
+
+onEvent("backnewButton", "click", function() {
+  if (isNewTranslation) {
+    // If adding a new translations, go back to home screen
+    setScreen("welcomeScreen");
+  }
+  else {
+    // If editing an existing translations, go back to list of all translations
+    setScreen("viewallScreen");
+  }
+  clearNewTranslationScreen();
+});
+
+// Event handlers for screen_delete_success buttons
+
+
+// Event handlers for screen_error buttons
+// Functions
+
+// Reset the UI elements on newwordScreen
+function clearNewTranslationScreen() {
+  setText("newenglishInput", "");
+  setText("newspanishInput", "");
+}
+// Pick a translation from the records
+function choosetranslatedWord() {
+  var english = getText("englishInput");
+  // Pick a translation from the records
+  //translateWord = randomNumber(0, allTranslations.length - 1);
+ readRecords("Translations", {english:english}, function(records) {
+   for (var i =0; i < records.length; i++) {
+     //textLabel('', records[i].id + ': ' + records[i].name);
+     setText("spanishtranslationText",records[i].spanish);
+   }
+ });
+ 
+  // Load UI elements
+  //setText("spanishtranslationText", allTranslations[translateWord].spanish);
+}
+
+onEvent("transButton", "click", function() {
+  choosetranslatedWord();
+});
+
+// Populate allTranslations UI elements with info from the translation at allCTranslations[index]
+function loadTranslations(index) {
+  // Check index, wrap if out of bounds of allTranslations array
+  if (index == -1) {
+    // If going off left side of array, wrap index to right end of array
+    index = allTranslations.length - 1;
+  }
+  else if (index == allTranslations.length) {
+    // If going off the right side of array, wrap index to left end of array
+    index = 0;
+  }
+  
+  currentTranslation = index;
+
+  // Load the text areas for the current translation
+  setText("englishallText", allTranslations[currentTranslation].english);
+  setText("spanishallText", allTranslations[currentTranslation].spanish);
+}
+
+onEvent("memesButton", "click", function() {
+  setScreen("memesScreen");
+});
+
+var translationMemes = [];
+var currentIndex = 0;
+appendItem(translationMemes, "http://itcglobaltranslations.com/wp-content/uploads/2013/04/5_Qualities_of_a_Quality_Translator-300x2072.jpg");
+appendItem(translationMemes, "https://i.imgflip.com/v0usc.jpg");
+appendItem(translationMemes, "https://s-media-cache-ak0.pinimg.com/736x/b7/e4/26/b7e4262326300a4e0fe31852d7398d8b.jpg");
+appendItem(translationMemes, "http://www.k-international.com/wp-content/uploads/2015/03/translation-like-toilet-paper.jpg");
+appendItem(translationMemes, "https://s-media-cache-ak0.pinimg.com/736x/09/ac/7f/09ac7f50df7792e7b931f3b8fc15460c.jpg");
+appendItem(translationMemes, "https://s-media-cache-ak0.pinimg.com/236x/1a/5f/af/1a5faf2dd03f7cc40b067be60e6247c3.jpg");
+appendItem(translationMemes, "https://i.imgflip.com/oaixk.jpg");
+appendItem(translationMemes, "https://cdn.meme.am/cache/instances/folder343/500x/66006343.jpg");
+updateScreenFwd();
+
+function updateScreenFwd() {
+  // updates screen and its index
+  setImageURL("myMemes" , translationMemes[currentIndex]);
+  setText("numOfPages", (currentIndex+1) + " of " + translationMemes.length);
+  }
+
+onEvent("lastMemeButton", "click", function() {
+  // displays last meme you viewed
+  currentIndex= currentIndex-1;
+  if (currentIndex<0) {
+    currentIndex = translationMemes.length-1;
+  }
+  updateScreenFwd();
+});
+
+onEvent("nextMemeButton", "click", function() {
+  // displays next meme in the list
+  currentIndex= currentIndex+1;
+  if (currentIndex >= translationMemes.length) {
+    currentIndex=0;
+  }
+  updateScreenFwd();
+});
+
+onEvent("memesbackButton", "click", function() {
+  setScreen("welcomeScreen");
+});
+
+onEvent("emptyhomeButton", "click", function() {
+  setScreen("welcomeScreen");
+});  
+
+onEvent("emptybackButton", "click", function() {
+  setScreen("welcomeScreen");
+}); 
